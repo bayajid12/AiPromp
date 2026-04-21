@@ -1,0 +1,128 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {userId}
+// Fields:
+//   - uid: string (required) - Firebase Auth UID
+//   - email: string (required) - User email
+//   - displayName: string (optional)
+//   - photoURL: string (optional) - Can be Base64
+//   - role: string (required, ['admin', 'creator', 'user'])
+//   - plan: string (optional, ['Free', 'Pro', 'Enterprise'])
+//   - twoFactorEnabled: bool (optional)
+//   - securityPin: string (optional)
+//   - createdAt: timestamp (required)
+//
+// Collection: notifications
+// Document ID: {notificationId}
+// Fields:
+//   - title: string (required)
+//   - message: string (required)
+//   - type: string (required, ['info', 'success', 'warning', 'error'])
+//   - read: bool (required)
+//   - createdAt: timestamp (required)
+//
+// Collection: prompts
+// Document ID: {promptId}
+// Fields:
+//   - url: string (required) - Image URL
+//   - prompt: string (required) - AI prompt text
+//   - tags: list (required) - Array of strings
+//   - authorId: string (required) - UID of creator
+//   - authorName: string (required) - Name of creator
+//   - height: number (required) - Image height
+//   - views: number (required) - View count
+//   - copies: number (required) - Copy count
+//   - createdAt: timestamp (required)
+//
+// Collection: categories
+// Document ID: {categoryId}
+// Fields:
+//   - name: string (required)
+//   - imageUrl: string (required)
+//   - count: number (required)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "bayajid12am@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.email is string &&
+             data.role in ['admin', 'creator', 'user'] &&
+             data.createdAt is timestamp &&
+             (!('photoURL' in data) || data.photoURL is string) &&
+             (!('twoFactorEnabled' in data) || data.twoFactorEnabled is bool) &&
+             (!('securityPin' in data) || (data.securityPin is string && data.securityPin.size() <= 6));
+    }
+
+    function isValidPrompt(data) {
+      return data.keys().hasAll(['url', 'prompt', 'tags', 'authorId', 'authorName', 'height', 'views', 'copies', 'createdAt']) &&
+             data.url is string && data.url.size() < 1048576 &&
+             data.prompt is string && data.prompt.size() < 5000 &&
+             data.tags is list && data.tags.size() <= 20 &&
+             data.authorId == request.auth.uid &&
+             data.authorName is string && data.authorName.size() < 100 &&
+             data.height is number &&
+             data.views is number &&
+             data.copies is number &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidCategory(data) {
+      return data.keys().hasAll(['name', 'imageUrl', 'count']) &&
+             data.name is string && data.name.size() < 100 &&
+             data.imageUrl is string && data.imageUrl.size() < 1048576 &&
+             data.count is number;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'user';
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role) || isAdmin();
+    }
+
+    match /prompts/{promptId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidPrompt(request.resource.data);
+      allow update: if isAdmin() || (isAuthenticated() && resource.data.authorId == request.auth.uid && isValidPrompt(request.resource.data));
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.authorId == request.auth.uid);
+    }
+
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

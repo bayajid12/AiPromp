@@ -1,0 +1,63 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and role information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "creator", "user"] },
+        "plan": { "type": "string", "enum": ["Free", "Pro", "Enterprise"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Prompt": {
+      "title": "Prompt",
+      "description": "AI generated prompt and image metadata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "url": { "type": "string", "format": "uri" },
+        "prompt": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "height": { "type": "number" },
+        "views": { "type": "number" },
+        "copies": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["url", "prompt", "authorId"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Prompt categories",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "imageUrl": { "type": "string", "format": "uri" },
+        "count": { "type": "number" }
+      },
+      "required": ["name", "imageUrl"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/prompts/{promptId}": {
+      "schema": "Prompt",
+      "description": "Collection of AI prompts"
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Prompt categories"
+    }
+  }
+}
