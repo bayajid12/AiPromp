@@ -43,6 +43,7 @@ export default function AdminLayout() {
   return (
     <div className="min-h-screen bg-admin-bg text-slate-900 font-sans selection:bg-admin-accent/30">
       {/* Sidebar */}
+      {/* Sidebar */}
       <aside 
         className={cn(
           "fixed left-0 top-0 h-full bg-white border-r border-admin-border transition-all duration-300 z-50",
