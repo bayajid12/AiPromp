@@ -44,6 +44,17 @@
         "count": { "type": "number" }
       },
       "required": ["name", "imageUrl"]
+    },
+    "SiteSettings": {
+      "title": "Site Settings",
+      "description": "General application settings",
+      "type": "object",
+      "properties": {
+        "siteName": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "supportEmail": { "type": "string" },
+        "maintenanceMode": { "type": "boolean" }
+      }
     }
   },
   "firestore": {
@@ -58,6 +69,10 @@
     "/categories/{categoryId}": {
       "schema": "Category",
       "description": "Prompt categories"
+    },
+    "/settings/{settingId}": {
+      "schema": "SiteSettings",
+      "description": "General application settings"
     }
   }
 }

@@ -8,7 +8,7 @@ import { auth, signOut, googleProvider, signInWithPopup } from '../firebase';
 export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { clearSearch, searchQuery, setSearchQuery, user, userProfile } = useSearch();
+  const { clearSearch, searchQuery, setSearchQuery, user, userProfile, siteSettings } = useSearch();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -66,10 +66,14 @@ export default function Header() {
       <div className="max-w-[2560px] mx-auto px-6 h-20 flex items-center justify-between gap-4">
         {/* Logo */}
         <Link to="/" onClick={clearSearch} className="flex items-center cursor-pointer shrink-0">
-          <span className="font-bold text-2xl md:text-3xl tracking-tighter">
-            <span className="text-[#7C3AED]">Ai</span>
-            <span className="bg-gradient-to-r from-[#F59E0B] via-[#EF4444] to-[#A855F7] bg-clip-text text-transparent">Promp</span>
-          </span>
+          {siteSettings?.logoUrl ? (
+            <img src={siteSettings.logoUrl} alt={siteSettings.siteName || "AiPromp"} className="h-10 md:h-12 w-auto object-contain" />
+          ) : (
+            <span className="font-bold text-2xl md:text-3xl tracking-tighter">
+              <span className="text-[#7C3AED]">Ai</span>
+              <span className="bg-gradient-to-r from-[#F59E0B] via-[#EF4444] to-[#A855F7] bg-clip-text text-transparent">Promp</span>
+            </span>
+          )}
         </Link>
 
         {/* Search Bar - Shown on Scroll */}
@@ -193,10 +197,14 @@ export default function Header() {
               className="fixed top-0 right-0 bottom-0 w-[80%] max-w-sm bg-white z-50 lg:hidden flex flex-col shadow-2xl"
             >
               <div className="p-6 flex items-center justify-between border-b border-gray-100">
-                <span className="font-bold text-xl tracking-tighter">
-                  <span className="text-[#7C3AED]">Ai</span>
-                  <span className="bg-gradient-to-r from-[#F59E0B] via-[#EF4444] to-[#A855F7] bg-clip-text text-transparent">Promp</span>
-                </span>
+                {siteSettings?.logoUrl ? (
+                  <img src={siteSettings.logoUrl} alt={siteSettings.siteName || "AiPromp"} className="h-8 w-auto object-contain" />
+                ) : (
+                  <span className="font-bold text-xl tracking-tighter">
+                    <span className="text-[#7C3AED]">Ai</span>
+                    <span className="bg-gradient-to-r from-[#F59E0B] via-[#EF4444] to-[#A855F7] bg-clip-text text-transparent">Promp</span>
+                  </span>
+                )}
                 <button 
                   onClick={() => setIsMenuOpen(false)}
                   className="p-2 hover:bg-gray-50 rounded-full text-black"
@@ -270,7 +278,7 @@ export default function Header() {
               </div>
 
               <div className="p-6 border-t border-gray-100 text-center">
-                <p className="text-xs text-black/40 font-medium">© 2026 AiPromp. All rights reserved.</p>
+                <p className="text-xs text-black/40 font-medium">© 2026 {siteSettings?.siteName || "AiPromp"}. All rights reserved.</p>
               </div>
             </motion.div>
           </>

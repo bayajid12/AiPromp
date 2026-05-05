@@ -36,7 +36,8 @@ export async function compressImage(file: File, minSizeKB: number = 500, maxSize
         const maxBase64Length = maxSizeKB * 1024 * 1.33;
         
         let quality = 0.95;
-        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+        const mimeType = file.type === 'image/png' || file.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
+        let dataUrl = canvas.toDataURL(mimeType, quality);
         
         // If the image is already within or below the range, we're good
         if (dataUrl.length <= maxBase64Length) {
@@ -47,7 +48,7 @@ export async function compressImage(file: File, minSizeKB: number = 500, maxSize
         // Iterative compression to get under the max size
         while (dataUrl.length > maxBase64Length && quality > 0.1) {
           quality -= 0.05;
-          dataUrl = canvas.toDataURL('image/jpeg', quality);
+          dataUrl = canvas.toDataURL(mimeType, quality);
         }
 
         resolve(dataUrl);

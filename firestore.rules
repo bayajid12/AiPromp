@@ -49,6 +49,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    match /{document=**} { allow read, write: if false; }
 
     // ===============================================================
     // Helper Functions
@@ -123,6 +124,11 @@ service cloud.firestore {
 
     match /notifications/{notificationId} {
       allow read, write: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }

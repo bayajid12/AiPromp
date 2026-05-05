@@ -38,7 +38,7 @@ const navItems = [
 export default function AdminLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const location = useLocation();
-  const { user, userProfile } = useSearch();
+  const { user, userProfile, siteSettings } = useSearch();
 
   return (
     <div className="min-h-screen bg-admin-bg text-slate-900 font-sans selection:bg-admin-accent/30">
@@ -51,11 +51,15 @@ export default function AdminLayout() {
         )}
       >
         <div className="p-6 flex items-center gap-3">
-          <div className="w-8 h-8 bg-admin-accent rounded-lg flex items-center justify-center flex-shrink-0">
-            <span className="font-black text-white italic">A</span>
-          </div>
-          {isSidebarOpen && (
-            <span className="text-xl font-black tracking-tighter italic text-slate-900">AiPromp</span>
+          {siteSettings?.logoUrl ? (
+            <img src={siteSettings.logoUrl} alt="Logo" className={cn("object-contain transition-all", isSidebarOpen ? "h-8" : "h-6 w-6")} />
+          ) : (
+            <div className="w-8 h-8 bg-admin-accent rounded-lg flex items-center justify-center flex-shrink-0">
+              <span className="font-black text-white italic">A</span>
+            </div>
+          )}
+          {isSidebarOpen && !siteSettings?.logoUrl && (
+            <span className="text-xl font-black tracking-tighter italic text-slate-900">{siteSettings?.siteName || "AiPromp"}</span>
           )}
         </div>
 

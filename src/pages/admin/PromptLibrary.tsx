@@ -22,6 +22,8 @@ export default function PromptLibrary() {
   const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showUpdateToast, setShowUpdateToast] = useState(false);
 
   const [error, setError] = useState<any>(null);
 
@@ -73,6 +75,7 @@ export default function PromptLibrary() {
   const handleDelete = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'prompts', id));
+      setLibrary(prev => prev.filter(item => item.id !== id));
       setShowDeleteModal(null);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
@@ -87,18 +90,27 @@ export default function PromptLibrary() {
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingItem) return;
+    if (!editingItem || isSaving) return;
     
+    setIsSaving(true);
     try {
       const { id, ...data } = editingItem;
       await updateDoc(doc(db, 'prompts', id), data);
+      
+      // Update local state
+      setLibrary(prev => prev.map(item => item.id === id ? { ...item, ...data } : item));
+      
       setIsSlideOverOpen(false);
+      setShowUpdateToast(true);
+      setTimeout(() => setShowUpdateToast(false), 3000);
     } catch (error) {
       try {
         handleFirestoreError(error, OperationType.UPDATE, `prompts/${editingItem.id}`);
       } catch (e) {
         setError(e);
       }
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -352,9 +364,17 @@ export default function PromptLibrary() {
                   <div className="flex gap-4 pt-10">
                     <button 
                       type="submit"
-                      className="flex-1 bg-admin-accent text-white py-4 rounded-2xl font-bold hover:bg-admin-accent/90 transition-all"
+                      disabled={isSaving}
+                      className="flex-1 bg-admin-accent text-white py-4 rounded-2xl font-bold hover:bg-admin-accent/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Save Changes
+                      {isSaving ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span>Saving...</span>
+                        </>
+                      ) : (
+                        <span>Save Changes</span>
+                      )}
                     </button>
                     <button 
                       type="button"
@@ -378,10 +398,24 @@ export default function PromptLibrary() {
             initial={{ opacity: 0, y: 50, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="fixed bottom-10 right-10 z-[100] bg-rose-500 text-white px-6 py-4 rounded-2xl border border-rose-600 flex items-center gap-3"
+            className="fixed bottom-10 right-10 z-[100] bg-rose-500 text-white px-6 py-4 rounded-2xl border border-rose-600 flex items-center gap-3 shadow-2xl"
           >
             <Trash2 size={20} />
             <span className="font-bold">Prompt Deleted Successfully!</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showUpdateToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="fixed bottom-10 right-10 z-[100] bg-admin-accent text-white px-6 py-4 rounded-2xl border border-admin-accent/20 flex items-center gap-3 shadow-2xl"
+          >
+            <CheckCircle2 size={20} />
+            <span className="font-bold">Changes Saved Successfully!</span>
           </motion.div>
         )}
       </AnimatePresence>

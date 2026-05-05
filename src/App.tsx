@@ -53,6 +53,8 @@ interface SearchContextType {
   incrementPublicCopy: () => void;
   incrementPublicView: () => void;
   categories: any[];
+  siteSettings: any | null;
+  setSiteSettings: (settings: any) => void;
 }
 
 const SearchContext = createContext<SearchContextType | undefined>(undefined);
@@ -70,6 +72,7 @@ function SearchProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<any | null>(null);
   const [categories, setCategories] = useState<any[]>([]);
+  const [siteSettings, setSiteSettings] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [publicCopyCount, setPublicCopyCount] = useState(() => {
     return parseInt(localStorage.getItem('publicCopyCount') || '0');
@@ -110,6 +113,27 @@ function SearchProvider({ children }: { children: ReactNode }) {
     };
 
     fetchCategories();
+
+    const fetchSettings = async () => {
+      try {
+        const settingsDoc = await getDoc(doc(db, 'settings', 'general'));
+        if (settingsDoc.exists()) {
+          setSiteSettings(settingsDoc.data());
+        } else {
+          // Default settings if none exist
+          const defaultSettings = {
+            siteName: 'AiPromp',
+            logoUrl: '',
+            supportEmail: 'support@aipromp.com'
+          };
+          setSiteSettings(defaultSettings);
+        }
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+      }
+    };
+
+    fetchSettings();
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       try {
@@ -185,7 +209,9 @@ function SearchProvider({ children }: { children: ReactNode }) {
       publicViewCount,
       incrementPublicCopy,
       incrementPublicView,
-      categories
+      categories,
+      siteSettings,
+      setSiteSettings
     }}>
       {children}
     </SearchContext.Provider>
@@ -193,11 +219,12 @@ function SearchProvider({ children }: { children: ReactNode }) {
 }
 
 function Footer() {
+  const { siteSettings } = useSearch();
   return (
     <footer className="bg-white border-t border-gray-100 py-12 px-6 mt-20">
       <div className="max-w-[2560px] mx-auto flex flex-col md:flex-row justify-between items-center gap-8 text-sm text-black font-medium">
         <div className="flex items-center gap-2">
-          <span>© 2026. All rights reserved.</span>
+          <span>© 2026 {siteSettings?.siteName || "AiPromp"}. All rights reserved.</span>
         </div>
         <div className="flex gap-8 items-center">
           <Link to="/about" className="hover:opacity-70 transition-colors">About</Link>
@@ -221,7 +248,7 @@ export default function App() {
 }
 
 function AppContent() {
-  const { selectedImage, setSelectedImage, userProfile, user, loading } = useSearch();
+  const { selectedImage, setSelectedImage, userProfile, user, loading, siteSettings } = useSearch();
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/admin');
   const [show2FA, setShow2FA] = useState(false);
@@ -278,7 +305,7 @@ function AppContent() {
               onClick={() => window.location.href = '/'}
               className="w-full py-4 text-slate-400 font-bold hover:text-slate-900 transition-colors"
             >
-              Back to Site
+              Back to {siteSettings?.siteName || "Site"}
             </button>
           </div>
         </div>
