@@ -24,7 +24,14 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image }) => {
 
   const trackAction = async (action: 'views' | 'copies') => {
     if (!image.id || typeof image.id !== 'string' || image.id.startsWith('IMG-')) return;
+    
+    // session storage to prevent multiple view writes for the same image in one session
+    const sessionKey = `tracked_${action}_${image.id}`;
+    if (action === 'views' && sessionStorage.getItem(sessionKey)) return;
+
     try {
+      if (action === 'views') sessionStorage.setItem(sessionKey, 'true');
+      
       await updateDoc(doc(db, 'prompts', image.id), {
         [action]: increment(1)
       });

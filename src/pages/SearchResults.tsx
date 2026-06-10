@@ -7,42 +7,28 @@ import { db, collection, getDocs, query, orderBy, handleFirestoreError, Operatio
 import { ImageItem } from '../types';
 
 export default function SearchResults() {
-  const { searchQuery, setSearchQuery, clearSearch, categories } = useSearch();
-  const [dbImages, setDbImages] = useState<ImageItem[]>([]);
+  const { searchQuery, setSearchQuery, clearSearch, categories, prompts, refreshPrompts } = useSearch();
 
   const [error, setError] = useState<any>(null);
 
   if (error) throw error;
 
   useEffect(() => {
-    const fetchPrompts = async () => {
-      try {
-        const q = query(collection(db, 'prompts'), orderBy('createdAt', 'desc'), limit(100));
-        const snapshot = await getDocs(q);
-        const images = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImageItem));
-        setDbImages(images);
-      } catch (error) {
-        try {
-          handleFirestoreError(error, OperationType.LIST, 'prompts');
-        } catch (e) {
-          setError(e);
-        }
-      }
-    };
-
-    fetchPrompts();
-  }, []);
+    if (prompts.length === 0) {
+      refreshPrompts();
+    }
+  }, [prompts.length, refreshPrompts]);
 
   const relatedImages = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const queryStr = searchQuery.toLowerCase();
     
-    return dbImages.filter(img => {
+    return prompts.filter(img => {
       const inPrompt = img.prompt.toLowerCase().includes(queryStr);
       const inTags = img.tags.some(tag => tag.toLowerCase().includes(queryStr));
       return inPrompt || inTags;
     });
-  }, [searchQuery, dbImages]);
+  }, [searchQuery, prompts]);
 
   // Fuzzy search / Suggestions logic
   const suggestions = useMemo(() => {
@@ -52,7 +38,7 @@ export default function SearchResults() {
     const allTerms = new Set<string>();
     
     // Collect all tags and category names
-    dbImages.forEach(img => img.tags.forEach(tag => allTerms.add(tag)));
+    prompts.forEach(img => img.tags.forEach(tag => allTerms.add(tag)));
     categories.forEach(cat => allTerms.add(cat.name));
     
     // Find terms that partially match or have common words
@@ -64,18 +50,18 @@ export default function SearchResults() {
     });
     
     return matches.slice(0, 5);
-  }, [searchQuery, relatedImages, dbImages, categories]);
+  }, [searchQuery, relatedImages, prompts, categories]);
 
   // Images related to suggestions
   const suggestedImages = useMemo(() => {
     if (suggestions.length === 0) return [];
     
-    return dbImages.filter(img => 
+    return prompts.filter(img => 
       img.tags.some(tag => 
         suggestions.some(s => tag.toLowerCase() === s.toLowerCase())
       )
     ).slice(0, 8);
-  }, [suggestions, dbImages]);
+  }, [suggestions, prompts]);
 
   if (!searchQuery.trim()) {
     return (
@@ -183,7 +169,7 @@ export default function SearchResults() {
           <div className="mt-20">
             <h2 className="text-2xl font-bold mb-8">You might also like</h2>
             <div className="masonry-grid columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
-              {dbImages.filter(img => !relatedImages.find(r => r.id === img.id)).slice(0, 4).map((image) => (
+              {prompts.filter(img => !relatedImages.find(r => r.id === img.id)).slice(0, 4).map((image) => (
                 <ImageCard key={`suggested-${image.id}`} image={image} />
               ))}
             </div>

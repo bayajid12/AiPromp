@@ -4,9 +4,9 @@
  */
 
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { useState, createContext, useContext, ReactNode, useEffect } from 'react';
+import { useState, createContext, useContext, ReactNode, useEffect, useCallback } from 'react';
 import { Lock } from 'lucide-react';
-import { auth, onAuthStateChanged, User, db, doc, getDoc, setDoc, serverTimestamp, handleFirestoreError, OperationType, collection, query, orderBy, getDocs } from './firebase';
+import { auth, onAuthStateChanged, User, db, doc, getDoc, setDoc, serverTimestamp, handleFirestoreError, OperationType, collection, query, orderBy, getDocs, limit } from './firebase';
 import Header from './components/Header';
 import Home from './pages/Home';
 import Explore from './pages/Explore';
@@ -53,6 +53,9 @@ interface SearchContextType {
   incrementPublicCopy: () => void;
   incrementPublicView: () => void;
   categories: any[];
+  prompts: ImageItem[];
+  setPrompts: (prompts: ImageItem[]) => void;
+  refreshPrompts: () => Promise<void>;
   siteSettings: any | null;
   setSiteSettings: (settings: any) => void;
 }
@@ -71,8 +74,60 @@ function SearchProvider({ children }: { children: ReactNode }) {
   const [selectedImage, setSelectedImage] = useState<ImageItem | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<any | null>(null);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [siteSettings, setSiteSettings] = useState<any | null>(null);
+  const [categories, setCategories] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem('cached_categories');
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  const [prompts, setPrompts] = useState<ImageItem[]>(() => {
+    try {
+      const cached = localStorage.getItem('cached_prompts');
+      return cached ? JSON.parse(cached) : [];
+    } catch { 
+      try {
+        localStorage.removeItem('cached_prompts');
+      } catch {}
+      return []; 
+    }
+  });
+
+  const safeSetItem = (key: string, value: string) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      console.warn(`LocalStorage setItem failed for key "${key}":`, e);
+      try {
+        localStorage.removeItem('cached_prompts');
+        localStorage.removeItem('prompts_last_fetch');
+        localStorage.setItem(key, value);
+      } catch (innerError) {
+        console.error(`LocalStorage fallback failed for key "${key}":`, innerError);
+      }
+    }
+  };
+
+  const safeCachePrompts = (images: ImageItem[]) => {
+    try {
+      safeSetItem('cached_prompts', JSON.stringify(images));
+    } catch (e) {
+      console.warn('LocalStorage quota exceeded for prompts, trying with smaller set');
+      try {
+        safeSetItem('cached_prompts', JSON.stringify(images.slice(0, 20)));
+      } catch (e2) {
+        try {
+          localStorage.removeItem('cached_prompts');
+        } catch {}
+      }
+    }
+  };
+
+  const [siteSettings, setSiteSettings] = useState<any | null>(() => {
+    try {
+      const cached = localStorage.getItem('cached_site_settings');
+      return cached ? JSON.parse(cached) : null;
+    } catch { return null; }
+  });
   const [loading, setLoading] = useState(true);
   const [publicCopyCount, setPublicCopyCount] = useState(() => {
     return parseInt(localStorage.getItem('publicCopyCount') || '0');
@@ -82,11 +137,11 @@ function SearchProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    localStorage.setItem('publicCopyCount', publicCopyCount.toString());
+    safeSetItem('publicCopyCount', publicCopyCount.toString());
   }, [publicCopyCount]);
 
   useEffect(() => {
-    localStorage.setItem('publicViewCount', publicViewCount.toString());
+    safeSetItem('publicViewCount', publicViewCount.toString());
   }, [publicViewCount]);
 
   const incrementPublicCopy = () => setPublicCopyCount(prev => prev + 1);
@@ -98,35 +153,38 @@ function SearchProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const fetchCategories = async () => {
+      const lastFetch = localStorage.getItem('categories_last_fetch');
+      const now = Date.now();
+      if (categories.length > 0 && lastFetch && now - parseInt(lastFetch) < 1000 * 60 * 60) {
+        return;
+      }
       try {
         const q = query(collection(db, 'categories'), orderBy('count', 'desc'));
         const snapshot = await getDocs(q);
         const cats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setCategories(cats);
+        safeSetItem('cached_categories', JSON.stringify(cats));
+        safeSetItem('categories_last_fetch', now.toString());
       } catch (error) {
-        try {
-          handleFirestoreError(error, OperationType.LIST, 'categories');
-        } catch (e) {
-          setError(e);
-        }
+        console.error('Error fetching categories:', error);
       }
     };
 
     fetchCategories();
 
     const fetchSettings = async () => {
+      const lastFetch = localStorage.getItem('settings_last_fetch');
+      const now = Date.now();
+      if (siteSettings && lastFetch && now - parseInt(lastFetch) < 1000 * 60 * 60 * 4) {
+        return;
+      }
       try {
         const settingsDoc = await getDoc(doc(db, 'settings', 'general'));
         if (settingsDoc.exists()) {
-          setSiteSettings(settingsDoc.data());
-        } else {
-          // Default settings if none exist
-          const defaultSettings = {
-            siteName: 'AiPromp',
-            logoUrl: '',
-            supportEmail: 'support@aipromp.com'
-          };
-          setSiteSettings(defaultSettings);
+          const data = settingsDoc.data();
+          setSiteSettings(data);
+          safeSetItem('cached_site_settings', JSON.stringify(data));
+          safeSetItem('settings_last_fetch', now.toString());
         }
       } catch (error) {
         console.error('Error fetching settings:', error);
@@ -134,6 +192,26 @@ function SearchProvider({ children }: { children: ReactNode }) {
     };
 
     fetchSettings();
+
+    const fetchPromptsData = async () => {
+      const lastFetch = localStorage.getItem('prompts_last_fetch');
+      const now = Date.now();
+      if (prompts.length > 0 && lastFetch && now - parseInt(lastFetch) < 1000 * 60 * 30) {
+        return;
+      }
+      try {
+        const q = query(collection(db, 'prompts'), orderBy('createdAt', 'desc'), limit(50));
+        const snapshot = await getDocs(q);
+        const images = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImageItem));
+        setPrompts(images);
+        safeCachePrompts(images);
+        safeSetItem('prompts_last_fetch', now.toString());
+      } catch (error) {
+        console.error('Error fetching prompts:', error);
+      }
+    };
+
+    fetchPromptsData();
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       try {
@@ -188,10 +266,23 @@ function SearchProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  const clearSearch = () => {
+  const refreshPrompts = useCallback(async () => {
+    try {
+      const q = query(collection(db, 'prompts'), orderBy('createdAt', 'desc'), limit(50));
+      const snapshot = await getDocs(q);
+      const images = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImageItem));
+      setPrompts(images);
+      safeCachePrompts(images);
+      safeSetItem('prompts_last_fetch', Date.now().toString());
+    } catch (error) {
+      console.error('Error refreshing prompts:', error);
+    }
+  }, []);
+
+  const clearSearch = useCallback(() => {
     setSearchQuery('');
     setSelectedCategory(null);
-  };
+  }, []);
 
   return (
     <SearchContext.Provider value={{ 
@@ -210,6 +301,9 @@ function SearchProvider({ children }: { children: ReactNode }) {
       incrementPublicCopy,
       incrementPublicView,
       categories,
+      prompts,
+      setPrompts,
+      refreshPrompts,
       siteSettings,
       setSiteSettings
     }}>

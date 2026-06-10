@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Copy, Share2, HelpCircle, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ImageItem } from '../types';
-import { images as allImages } from '../data';
 import { db, doc, updateDoc, increment } from '../firebase';
 import { useSearch } from '../App';
 
@@ -15,13 +14,20 @@ interface ImageDetailsModalProps {
 export default function ImageDetailsModal({ image, onClose }: ImageDetailsModalProps) {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
-  const { user, publicCopyCount, incrementPublicCopy } = useSearch();
+  const { user, publicCopyCount, incrementPublicCopy, prompts } = useSearch();
 
   if (!image) return null;
 
   const trackAction = async (action: 'views' | 'copies') => {
     if (!image.id || typeof image.id !== 'string' || image.id.startsWith('IMG-')) return;
+
+    // session storage to prevent multiple view writes for the same image in one session
+    const sessionKey = `tracked_${action}_${image.id}`;
+    if (action === 'views' && sessionStorage.getItem(sessionKey)) return;
+
     try {
+      if (action === 'views') sessionStorage.setItem(sessionKey, 'true');
+
       await updateDoc(doc(db, 'prompts', image.id), {
         [action]: increment(1)
       });
@@ -30,8 +36,8 @@ export default function ImageDetailsModal({ image, onClose }: ImageDetailsModalP
     }
   };
 
-  const relatedImages = allImages
-    .filter(img => img.id !== image.id && img.tags.some(tag => image.tags.includes(tag)))
+  const relatedImages = prompts
+    .filter((img: ImageItem) => img.id !== image.id && img.tags.some(tag => image.tags.includes(tag)))
     .slice(0, 4);
 
   const handleCopy = () => {

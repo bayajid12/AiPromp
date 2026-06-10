@@ -5,36 +5,24 @@ import React, { useEffect, useState } from 'react';
 import { db, collection, onSnapshot, query, orderBy, getDocs, handleFirestoreError, OperationType, limit } from '../firebase';
 
 export default function Categories() {
-  const { setSelectedCategory, categories } = useSearch();
+  const { setSelectedCategory, categories, prompts, refreshPrompts } = useSearch();
   const navigate = useNavigate();
-  const [dbImages, setDbImages] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (prompts.length === 0) {
+      setIsLoading(true);
+      refreshPrompts().finally(() => setIsLoading(false));
+    }
+  }, [prompts.length, refreshPrompts]);
 
   const [error, setError] = useState<any>(null);
 
   if (error) throw error;
 
-  useEffect(() => {
-    const fetchImages = async () => {
-      try {
-        const qImages = query(collection(db, 'prompts'), limit(50));
-        const snapshot = await getDocs(qImages);
-        const imgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setDbImages(imgs);
-      } catch (error) {
-        try {
-          handleFirestoreError(error, OperationType.LIST, 'prompts');
-        } catch (e) {
-          setError(e);
-        }
-      }
-    };
-
-    fetchImages();
-  }, []);
-
   // Calculate dynamic counts
   const categoriesWithCounts = categories.map(cat => {
-    const count = dbImages.filter(img => 
+    const count = prompts.filter(img => 
       img.tags.some(tag => tag.toLowerCase() === cat.name.toLowerCase())
     ).length;
     return { ...cat, count };

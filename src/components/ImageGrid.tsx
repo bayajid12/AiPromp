@@ -9,8 +9,7 @@ import { useSearch } from '../App';
 import { db, collection, onSnapshot, query, orderBy, limit, getDocs, handleFirestoreError, OperationType } from '../firebase';
 
 export default function ImageGrid() {
-  const { searchQuery, selectedCategory, categories } = useSearch();
-  const [dbImages, setDbImages] = useState<ImageItem[]>([]);
+  const { searchQuery, selectedCategory, categories, prompts, refreshPrompts } = useSearch();
   const [isLoading, setIsLoading] = useState(false);
   const observerTarget = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -21,48 +20,24 @@ export default function ImageGrid() {
   if (error) throw error;
 
   useEffect(() => {
-    const fetchPrompts = async () => {
+    if (prompts.length === 0) {
       setIsLoading(true);
-      try {
-        const q = query(collection(db, 'prompts'), orderBy('createdAt', 'desc'), limit(50));
-        const snapshot = await getDocs(q);
-        const images = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImageItem));
-        setDbImages(images);
-      } catch (error) {
-        try {
-          handleFirestoreError(error, OperationType.LIST, 'prompts');
-        } catch (e) {
-          setError(e);
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchPrompts();
-  }, []);
+      refreshPrompts().finally(() => setIsLoading(false));
+    }
+  }, [prompts.length, refreshPrompts]);
 
   // Calculate dynamic counts for categories
-  const categoriesWithCounts = useMemo(() => {
+  const allCategories = useMemo(() => {
     return categories.map(cat => {
-      const count = dbImages.filter(img => 
+      const count = prompts.filter((img: ImageItem) => 
         img.tags.some(tag => tag.toLowerCase() === cat.name.toLowerCase())
       ).length;
       return { ...cat, count };
     });
-  }, [dbImages, categories]);
+  }, [prompts, categories]);
 
-  const allImages = useMemo(() => {
-    return dbImages;
-  }, [dbImages]);
-
-  const allCategories = useMemo(() => {
-    return categoriesWithCounts;
-  }, [categoriesWithCounts]);
-
-  // Filter images based on search query and selected category
   const filteredImages = useMemo(() => {
-    let result = allImages;
+    let result = prompts;
     
     if (searchQuery.trim()) {
       const queryStr = searchQuery.toLowerCase();
@@ -79,12 +54,10 @@ export default function ImageGrid() {
     }
     
     return result;
-  }, [allImages, searchQuery, selectedCategory]);
+  }, [prompts, searchQuery, selectedCategory]);
 
-  const [displayImages, setDisplayImages] = useState<ImageItem[]>([]);
-
-  useEffect(() => {
-    setDisplayImages(filteredImages);
+  const displayImages = useMemo(() => {
+    return filteredImages;
   }, [filteredImages]);
 
   const scroll = (direction: 'left' | 'right') => {

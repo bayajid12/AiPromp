@@ -9,7 +9,12 @@ import { ImageItem } from '../types';
 export default function CategoryDetail() {
   const { categoryName } = useParams<{ categoryName: string }>();
   const [searchQuery, setSearchQuery] = useState('');
-  const [dbImages, setDbImages] = useState<ImageItem[]>([]);
+  const [dbImages, setDbImages] = useState<ImageItem[]>(() => {
+    try {
+      const cached = sessionStorage.getItem(`cat_cache_${categoryName}`);
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
   const navigate = useNavigate();
 
   const [error, setError] = useState<any>(null);
@@ -20,9 +25,11 @@ export default function CategoryDetail() {
     if (!categoryName) return;
     
     const fetchPrompts = async () => {
+      // Use category-specific cache to avoid redundant fetches in the same session
+      const cached = sessionStorage.getItem(`cat_cache_${categoryName}`);
+      if (cached) return;
+
       try {
-        // Try to match the category name exactly as it appears in tags
-        // Most tags are capitalized (e.g., "Office", "Nature")
         const formattedCategory = categoryName.charAt(0).toUpperCase() + categoryName.slice(1);
         
         const q = query(
@@ -35,6 +42,7 @@ export default function CategoryDetail() {
         const snapshot = await getDocs(q);
         const images = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImageItem));
         setDbImages(images);
+        sessionStorage.setItem(`cat_cache_${categoryName}`, JSON.stringify(images));
       } catch (error) {
         try {
           handleFirestoreError(error, OperationType.LIST, 'prompts');
